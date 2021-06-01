@@ -6,4 +6,4 @@ This script will query the Certificate Authority and pull a list of certifiates 
 The certificate status shows up with a colored exclamation mark based on if the cert is expiring in 15 days (red), 30 days (yellow/orange), 60 days (blue), 61+ days(green). You can mouse over the exclamation mark to get a read of the status.
 
 # Things to Edit to Make This Work For You
-Edit the variables under "Variables to Edit" in teh script. 
+Edit the variables under "Variables to Edit" in the script. Also, copy the IIS folder to your IIS directory for the website that you create.
