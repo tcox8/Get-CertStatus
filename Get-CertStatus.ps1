@@ -32,6 +32,8 @@ $60dayCerts = 0 #Count used for emailing
 [string]$emailSMTPserver = ''  #This is the SMTP Server
 $pageURL = "" #This will be the DNS name of the local webpage URL. i.e. https://CertStatus.contoso.com
 $IISLocation = "C:\inetpub\certstatus\" #This is the location to the IIS folder 
+$CAServerName = ''  #The name of the server that hosts the Certificate Authority
+$CAname = '' #The name of the Certificate Authority instance.
 
 #get our cert expiry dates
 $warninglowdate = (Get-Date).AddDays(60)
@@ -220,7 +222,7 @@ function Get-IssuedCertificate
 }
 
 #Get all certs from the CA 
-$AllCerts = Get-IssuedCertificate -CAlocation CA\CA -Properties 'Issued Common Name', 'Certificate Expiration Date', 'Certificate Effective Date', 'Certificate Template', 'Requester Name', 'Certificate Hash'
+$AllCerts = Get-IssuedCertificate -CAlocation ($CAServerName + '\' + $CAname) -Properties 'Issued Common Name', 'Certificate Expiration Date', 'Certificate Effective Date', 'Certificate Template', 'Requester Name', 'Certificate Hash'
 
 #Parse by cert templates [Edit this if you want different templates to show up]
 $MonitoredCerts = $AllCerts | Where {$_.'Certificate Template' -eq 'ACS' -OR $_.'Certificate Template' -eq 'ADFSCertificate' -OR $_.'Certificate Template' -eq 'CodeSigning' -OR $_.'Certificate Template' -eq 'DirectAccess' -OR $_.'Certificate Template' -eq 'EFSRecovery' -OR $_.'Certificate Template' -eq 'GeneralCodeSigning' -OR $_.'Certificate Template' -eq 'SubCA' -OR $_.'Certificate Template' -eq 'HospiraMedNet' -OR $_.'Certificate Template' -eq 'SCCMWebServerCertificate' -OR $_.'Certificate Template' -eq 'WebServer'}
