@@ -3,16 +3,18 @@
 # 
 # Special Thanks: David Jones for his function: https://www.powershellgallery.com/packages/PKITools/1.6
 #
-# Version : 1.1
+# Version : 1.2
 # Created : 06/01/2021
-# Modified : 06/08/2021
+# Modified : 06/14/2021
 #
 # Purpose : This script queries all certs from the CA and publishes it to a webpage as well as emails
 #           the results of expiration days
 #
 # Requirements: None
 #             
-# Change Log:   Ver 1.1 - Added ability to send email summary only on the first of the month,
+# Change Log:   Ver 1.2 - Added 5 day warning. Updated warning colors to include new 5 day category. 
+#
+#               Ver 1.1 - Added ability to send email summary only on the first of the month,
 #                         but to also send email on odd days for certs expiring in 15 days or less
 #
 #               Ver 1.0 - Initial release
@@ -23,10 +25,11 @@
 $CurrentMonth = Get-Date -UFormat %b #Current month abbreviated
 $CurrentYear = (Get-Date).year #Get the year
 $CurrentDay = (Get-Date).Day #Get the day
-
+$CurrentDayofWeek = (Get-Date).DayofWeek #Get the day of the week
 [string]$emailSubject = "$($CurrentMonth)-$($CurrentYear) - Certificates Status"
 $table = $null #null out our variable
 $html = $null #null out our variable
+$5dayCerts = 0 #Count used for emailing
 $15dayCerts = 0 #Count used for emailing
 $30dayCerts = 0 #Count used for emailing
 $60dayCerts = 0 #Count used for emailing
@@ -44,6 +47,7 @@ $CAname = '' #The name of the Certificate Authority instance.
 $warninglowdate = (Get-Date).AddDays(60)
 $warninghighdate = (Get-Date).AddDays(30)
 $warningseveredate = (Get-Date).AddDays(15)
+$warningcriticaldate = (Get-Date).AddDays(5)
 
 #Get-IssuedCertificate from: https://www.powershellgallery.com/packages/PKITools/1.6
 function Get-IssuedCertificate 
@@ -252,12 +256,17 @@ foreach ($Cert in $MonitoredCerts)
                 $30dayCerts += 1 #Add to our count
                 $CertStatus = '<a href=" " title="Warning High - Cert expires in less than 30 days!"><img src="images/checks/Yellow.png" alt="Yellow - High">'
             }
-        If ($Cert.'Certificate Expiration Date' -le $warningseveredate)
+        If ($Cert.'Certificate Expiration Date' -le $warningseveredate -AND $Cert.'Certificate Expiration Date' -gt $warningcriticaldate)
             {
                 #$status = "Warning Severe - Cert expires in less than 15 days!"
                 $15dayCerts += 1 #Add to our count
-                $CertStatus = '<a href=" " title="Warning Severe - Cert expires in less than 15 days!"><img src="images/checks/Red.png" alt="Red - Severe">'
+                $CertStatus = '<a href=" " title="Warning Severe - Cert expires in less than 15 days!"><img src="images/checks/Orange.png" alt="Orange - Severe">'
             }
+        If ($Cert.'Certificate Expiration Date' -le $warningcriticaldate)
+            {
+                #$status = "Warning Critical - Cert expires in less than 5 days!"
+                $5dayCerts += 1 #Add to our count
+                $
 
         #Build our html table
         $table = '
@@ -283,11 +292,16 @@ Invoke-Expression "@`"`r`n$template`r`n`"@" | Set-Content -Path ($IISLocation + 
 #Handle the emails
 If ($CurrentDay -eq 1) #Send out the monthly email on the first of the month
     {
-        [string]$emailBody = "<p><span style='color: red;'><strong>Certificate Status Monthly Update</strong></span><br /><br />Please use the link below to review the Certificates Status for this month.<br /><br />$($PageURL)<br /><br />Certs Expiring in 15 days or less:<span style='color: red;'><strong> $15dayCerts</strong></span><br />Certs Expiring in 30 days or less:<span style='color: orange;'><strong> $30dayCerts</strong></span><br />Certs Expiring in 60 days or less:<span style='color: dodgerblue;'><strong> $60dayCerts</strong></span><br /><br />This email is sent automatically.</p>"
+        [string]$emailBody = "<p><span style='color: red;'><strong>Certificate Status Monthly Update</strong></span><br /><br />Please use the link below to review the Certificates Status for this month.<br /><br />$($PageURL)<br /><br />Certs Expiring in 5 days or less:<span style='color: red;'><strong> $5dayCerts</strong></span><br />Certs Expiring in 15 days or less:<span style='color: Orange;'><strong> $15dayCerts</strong></span><br />Certs Expiring in 30 days or less:<span style='color: GOld;'><strong> $30dayCerts</strong></span><br />Certs Expiring in 60 days or less:<span style='color: dodgerblue;'><strong> $60dayCerts</strong></span><br /><br />This email is sent automatically.</p>"
         Send-MailMessage -To $emailTo -From $emailFrom -BodyAsHtml $emailBody -Subject $emailSubject -SmtpServer $emailSMTPserver #-Priority High    
     }
-If ($15dayCerts -ge 1 -AND ($CurrentDay %2 -eq 0))#Send a severe warning email if we detected one or more certs expiring in 15 days AND we are on an odd day. This is done so we don't get bombarded by cert emails.
+ElseIf (($CurrentDay -ne 1) -AND ($15dayCerts -ge 1) -AND ($CurrentDayofWeek -eq "Monday"))#Send a severe warning email if we detected one or more certs expiring in 15 days AND it's a monday as well as not the first day of the month. This is done so we don't get bombarded by cert emails.
     {
         [string]$emailBody = "<p><span style='color: red;'><strong>Severe Warning! Cert(s) expiring in 15 days or less!</strong></span><br /><br />Please use the link below to identify the cert(s) expiring:<br /><br />$($PageURL)<br /><br />Certs Expiring in 15 days or less:<span style='color: red;'><strong> $15dayCerts</strong></span><br />Certs Expiring in 30 days or less:<span style='color: orange;'><strong> $30dayCerts</strong></span><br />Certs Expiring in 60 days or less:<span style='color: dodgerblue;'><strong> $60dayCerts</strong></span><br /><br />This email is sent automatically.</p>"
-        Send-MailMessage -To $emailTo -From $emailFrom -BodyAsHtml $emailBody -Subject $emailSubject -SmtpServer $emailSMTPserver -Priority High    
+        Send-MailMessage -To $emailTo -From $emailFrom -BodyAsHtml $emailBody -Subject "Certificate Status - Severe Warning" -SmtpServer $emailSMTPserver -Priority High    
+    }
+ElseIf (($CurrentDay -ne 1) -AND ($5dayCerts -ge 1) -AND ($CurrentDayofWeek -ne "Monday"))#Send a Critical warning email if we detected one or more certs expiring in 5 days AND it's not the first day of the month or a Monday. This is done so we don't get bombarded by cert emails.
+    {
+        [string]$emailBody = "<p><span style='color: red;'><strong>Critical Warning! Cert(s) expiring in 5 days or less!</strong></span><br /><br />Please use the link below to identify the cert(s) expiring:<br /><br />$($PageURL)<br /><br />Certs Expiring in 15 days or less:<span style='color: red;'><strong> $15dayCerts</strong></span><br />Certs Expiring in 30 days or less:<span style='color: orange;'><strong> $30dayCerts</strong></span><br />Certs Expiring in 60 days or less:<span style='color: dodgerblue;'><strong> $60dayCerts</strong></span><br /><br />This email is sent automatically.</p>"
+        Send-MailMessage -To $emailTo -From $emailFrom -BodyAsHtml $emailBody -Subject "Certificate Status - Critical Warning" -SmtpServer $emailSMTPserver -Priority High    
     }
